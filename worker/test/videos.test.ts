@@ -82,6 +82,7 @@ describe("ClipShare Worker", () => {
     expect(created.response.status).toBe(201);
     expect(created.body.partSizeBytes).toBe(partSize);
     expect(created.body.partCount).toBe(2);
+    expect(created.body.video.shareEnabled).toBe(true);
     await expect(upload(created.body, 1, new Uint8Array(partSize).fill(65))).resolves.toHaveProperty("status", 200);
     await expect(upload(created.body, 2, new Uint8Array(137).fill(66))).resolves.toHaveProperty("status", 200);
     const status = await request(`/api/videos/${created.body.video.id}`, { headers: ownerHeaders() });
@@ -90,7 +91,9 @@ describe("ClipShare Worker", () => {
     expect(complete.status).toBe(200);
     expect((await complete.json()).shareUrl).toContain("/v/");
     const ready = await request(`/api/videos/${created.body.video.id}`, { headers: ownerHeaders() });
-    expect((await ready.json()).video.status).toBe("ready");
+    const readyBody = await ready.json();
+    expect(readyBody.video.status).toBe("ready");
+    expect(readyBody.video.shareEnabled).toBe(true);
   });
 
   it("uses the original upload for a repeated idempotency key", async () => {
@@ -226,6 +229,69 @@ describe("ClipShare Worker", () => {
     const newPath = new URL((await revoked.json()).shareUrl).pathname;
     expect((await request(oldPath)).status).toBe(404);
     expect((await request(newPath)).status).toBe(200);
+  });
+
+  it("switches a ready link off and back on without changing its token", async () => {
+    const ready = await readyVideo();
+    const shareUrl = (await ready.complete.clone().json()).shareUrl as string;
+    const viewerPath = new URL(shareUrl).pathname;
+    const mediaPath = await signedMediaPath(shareUrl);
+    const unknown = await request("/v/not-a-real-token");
+
+    const disabled = await request(`/api/videos/${ready.created.video.id}`, {
+      method: "PATCH",
+      headers: { ...ownerHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ shareEnabled: false })
+    });
+    expect(disabled.status).toBe(200);
+    expect((await disabled.json()).video).toMatchObject({ shareEnabled: false, shareUrl });
+    for (const path of [viewerPath, mediaPath]) {
+      const response = await request(path);
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe(await unknown.clone().text());
+    }
+
+    const enabled = await request(`/api/videos/${ready.created.video.id}`, {
+      method: "PATCH",
+      headers: { ...ownerHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ shareEnabled: true })
+    });
+    expect(enabled.status).toBe(200);
+    expect((await enabled.json()).video).toMatchObject({ shareEnabled: true, shareUrl });
+    expect((await request(viewerPath)).status).toBe(200);
+    expect((await request(mediaPath)).status).toBe(200);
+  });
+
+  it("updates titles and link state through PATCH", async () => {
+    const ready = await readyVideo();
+    const patch = (body: unknown) => request(`/api/videos/${ready.created.video.id}`, {
+      method: "PATCH",
+      headers: { ...ownerHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    expect((await patch({})).status).toBe(400);
+
+    const titled = await patch({ title: "  beach at dusk  " });
+    expect(titled.status).toBe(200);
+    expect((await titled.json()).video).toMatchObject({ title: "beach at dusk", shareEnabled: true });
+
+    const both = await patch({ title: "night beach", shareEnabled: false });
+    expect(both.status).toBe(200);
+    expect((await both.json()).video).toMatchObject({ title: "night beach", shareEnabled: false });
+  });
+
+  it("enables the new link when revoking a disabled video", async () => {
+    const ready = await readyVideo();
+    await request(`/api/videos/${ready.created.video.id}`, {
+      method: "PATCH",
+      headers: { ...ownerHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ shareEnabled: false })
+    });
+    const revoked = await request(`/api/videos/${ready.created.video.id}/revoke`, { method: "POST", headers: ownerHeaders() });
+    const body = await revoked.json();
+    expect(revoked.status).toBe(200);
+    expect(body.video.shareEnabled).toBe(true);
+    expect((await request(new URL(body.shareUrl).pathname)).status).toBe(200);
   });
 
   it("deletes the object and hides deleted videos", async () => {

@@ -28,7 +28,8 @@ Viewer routes never return JSON errors. Every failure is the same generic HTML 4
   "width": 1920,                 // nullable
   "height": 1080,                // nullable
   "status": "uploading",         // uploading | ready | failed
-  "shareUrl": null,              // "<PUBLIC_BASE_URL>/v/<token>" once ready, else null
+  "shareEnabled": true,          // false while the owner has switched the link off
+  "shareUrl": null,              // "<PUBLIC_BASE_URL>/v/<token>" once ready, else null (present even when disabled)
   "createdAt": "2026-09-01T18:00:00.000Z",
   "readyAt": null
 }
@@ -90,7 +91,7 @@ Cancel an in-progress upload. Aborts the multipart upload and deletes the row. `
 Newest first, all statuses. `limit` defaults to 50, max 200. Response `200 { "videos": [Video], "nextCursor": "…" | null }`.
 
 ### `PATCH /api/videos/{id}`
-Request `{ "title": "New title" }`. Title is trimmed, control characters stripped, max 200 chars, must be non-empty. Response `200 { "video": Video }`.
+Request `{ "title": "New title", "shareEnabled": false }`. Both fields optional, at least one required (`400 invalid_request` otherwise). Title is trimmed, control characters stripped, max 200 chars, must be non-empty. `shareEnabled: false` switches the link off without changing the token; the viewer returns the generic 404 until it's switched back on. Response `200 { "video": Video }`.
 
 ### `POST /api/videos/{id}/revoke`
 Kill the current share link and issue a new one. Old token returns the generic 404 immediately. Response `200 { "video": Video, "shareUrl": "…" }`. Only valid when `ready`, else `409 not_ready`.
@@ -101,7 +102,7 @@ Delete the video. If `uploading`, aborts the multipart upload first. Deletes the
 ## Viewer routes
 
 ### `GET /v/{token}`
-- Token matches a `ready` video: `200` HTML viewer page.
+- Token matches a `ready` video whose link is enabled: `200` HTML viewer page.
 - Anything else (unknown, not ready, deleted): `404` with the generic unavailable page. Same bytes for every reason.
 
 ### `GET|HEAD /v/{token}/media?e={exp}&s={sig}`
@@ -149,7 +150,8 @@ CREATE TABLE videos (
   share_token TEXT NOT NULL UNIQUE,
   idempotency_key TEXT UNIQUE,
   created_at INTEGER NOT NULL,             -- unix ms
-  ready_at INTEGER
+  ready_at INTEGER,
+  share_enabled INTEGER NOT NULL DEFAULT 1  -- added in migration 0002
 );
 CREATE INDEX videos_created_at ON videos (created_at DESC);
 ```

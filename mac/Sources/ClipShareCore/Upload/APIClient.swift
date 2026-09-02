@@ -37,10 +37,18 @@ public final class APIClient: @unchecked Sendable {
         return try await send(url: url, method: "GET")
     }
 
-    public func updateTitle(id: String, title: String) async throws -> Video {
-        struct Body: Encodable { let title: String }
+    public func updateVideo(id: String, title: String? = nil, shareEnabled: Bool? = nil) async throws -> Video {
+        precondition(title != nil || shareEnabled != nil, "An update requires a title or share setting")
+        struct Body: Encodable {
+            let title: String?
+            let shareEnabled: Bool?
+        }
         struct Response: Decodable { let video: Video }
-        let response: Response = try await send(path: "api/videos/\(id)", method: "PATCH", body: Body(title: title))
+        let response: Response = try await send(
+            path: "api/videos/\(id)",
+            method: "PATCH",
+            body: Body(title: title, shareEnabled: shareEnabled)
+        )
         return response.video
     }
 

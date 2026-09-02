@@ -215,12 +215,34 @@ videos.patch("/:id", async (context) => {
   context.set("route", "update_video");
   const video = await requireVideo(context);
   if (video instanceof Response) return video;
-  let input: Record<string, unknown>;
+  let input: unknown;
   try { input = await context.req.json(); } catch { return error(context, 400, "invalid_request", "Request body must be JSON."); }
-  if (typeof input.title !== "string") return error(context, 400, "invalid_title", "Title is invalid.");
-  const title = cleanedTitle(input.title).trim().slice(0, 200);
-  if (!title) return error(context, 400, "invalid_title", "Title must not be empty.");
-  await context.env.DB.prepare("UPDATE videos SET title = ? WHERE id = ?").bind(title, video.id).run();
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return error(context, 400, "invalid_request", "Request body must include a title or shareEnabled.");
+  }
+  const fields = input as Record<string, unknown>;
+  const hasTitle = Object.hasOwn(fields, "title");
+  const hasShareEnabled = Object.hasOwn(fields, "shareEnabled");
+  if (!hasTitle && !hasShareEnabled) return error(context, 400, "invalid_request", "Request body must include a title or shareEnabled.");
+
+  let title: string | undefined;
+  if (hasTitle) {
+    if (typeof fields.title !== "string") return error(context, 400, "invalid_title", "Title is invalid.");
+    title = cleanedTitle(fields.title).trim().slice(0, 200);
+    if (!title) return error(context, 400, "invalid_title", "Title must not be empty.");
+  }
+  if (hasShareEnabled && typeof fields.shareEnabled !== "boolean") {
+    return error(context, 400, "invalid_request", "shareEnabled must be a boolean.");
+  }
+  if (hasShareEnabled && video.status !== "ready") return error(context, 409, "not_ready", "Video is not ready.");
+
+  if (hasTitle && hasShareEnabled) {
+    await context.env.DB.prepare("UPDATE videos SET title = ?, share_enabled = ? WHERE id = ?").bind(title!, fields.shareEnabled ? 1 : 0, video.id).run();
+  } else if (hasTitle) {
+    await context.env.DB.prepare("UPDATE videos SET title = ? WHERE id = ?").bind(title!, video.id).run();
+  } else {
+    await context.env.DB.prepare("UPDATE videos SET share_enabled = ? WHERE id = ?").bind(fields.shareEnabled ? 1 : 0, video.id).run();
+  }
   const updated = await videoById(context.env, video.id);
   if (!updated) throw new HTTPException(500);
   return context.json({ video: toVideo(updated, context.env.PUBLIC_BASE_URL) });
@@ -232,7 +254,7 @@ videos.post("/:id/revoke", async (context) => {
   if (video instanceof Response) return video;
   if (video.status !== "ready") return error(context, 409, "not_ready", "Video is not ready.");
   const token = randomShareToken();
-  await context.env.DB.prepare("UPDATE videos SET share_token = ? WHERE id = ?").bind(token, video.id).run();
+  await context.env.DB.prepare("UPDATE videos SET share_token = ?, share_enabled = 1 WHERE id = ?").bind(token, video.id).run();
   const updated = await videoById(context.env, video.id);
   if (!updated) throw new HTTPException(500);
   const shareUrl = `${context.env.PUBLIC_BASE_URL}/v/${token}`;

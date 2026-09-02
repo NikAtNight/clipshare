@@ -25,6 +25,7 @@ protocol AppServices: Sendable {
         progress: @Sendable @escaping (UploadProgress) -> Void
     ) async throws -> Video
     func resume(videoID: String, fileURL: URL, configuration: AppConfiguration, progress: @Sendable @escaping (UploadProgress) -> Void) async throws -> Video
+    func updateVideo(_ video: Video, title: String?, shareEnabled: Bool?, configuration: AppConfiguration) async throws -> Video
     func revoke(_ video: Video, configuration: AppConfiguration) async throws -> Video
     func delete(_ video: Video, configuration: AppConfiguration) async throws
     func cleanup(_ prepared: PreparedMedia) async
@@ -91,6 +92,11 @@ actor LiveAppServices: AppServices {
     func resume(videoID: String, fileURL: URL, configuration: AppConfiguration, progress: @Sendable @escaping (UploadProgress) -> Void) async throws -> Video {
         let client = APIClient(baseURL: configuration.baseURL, token: configuration.token)
         return try await UploadManager(client: client, baseURL: configuration.baseURL).resume(videoID: videoID, fileURL: fileURL, progress: progress)
+    }
+
+    func updateVideo(_ video: Video, title: String?, shareEnabled: Bool?, configuration: AppConfiguration) async throws -> Video {
+        let client = APIClient(baseURL: configuration.baseURL, token: configuration.token)
+        return try await client.updateVideo(id: video.id, title: title, shareEnabled: shareEnabled)
     }
 
     func revoke(_ video: Video, configuration: AppConfiguration) async throws -> Video {
@@ -168,6 +174,7 @@ final class AppModel {
     var isShowingSettings = false
     var isPositioningPanel = false
     var confirmingDeleteVideoID: String?
+    var selectedVideoID: String?
     var dropPanelCorner: DropPanelCorner = DropPanelCorner.stored {
         didSet { dropPanelCorner.store() }
     }
@@ -178,6 +185,7 @@ final class AppModel {
     @ObservationIgnored private var sourceFileURL: URL?
     @ObservationIgnored private var idempotencyKey: UUID?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    @ObservationIgnored private var revokingVideoIDs: Set<String> = []
 
     init(services: any AppServices = LiveAppServices()) {
         self.services = services
@@ -320,6 +328,9 @@ final class AppModel {
             guard let self else { return }
             do {
                 videos = try await services.listVideos(configuration, limit: 20)
+                if let selectedVideoID, !videos.contains(where: { $0.id == selectedVideoID }) {
+                    deselect()
+                }
                 isRefreshing = false
             } catch APIError.unauthorized {
                 isRefreshing = false
@@ -344,13 +355,68 @@ final class AppModel {
         NSWorkspace.shared.open(url)
     }
 
-    func newLink(_ video: Video) {
-        guard let configuration else { return }
+    func select(_ video: Video) {
+        confirmingDeleteVideoID = nil
+        selectedVideoID = video.id
+    }
+
+    func deselect() {
+        selectedVideoID = nil
+    }
+
+    func rename(_ video: Video, to title: String) async {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, trimmedTitle != video.title, let configuration else { return }
+        do {
+            let replacement = try await services.updateVideo(
+                video,
+                title: trimmedTitle,
+                shareEnabled: nil,
+                configuration: configuration
+            )
+            mergeVideoUpdate(replacement, titleChanged: true, shareEnabledChanged: false)
+            showToast("Title saved")
+        } catch APIError.unauthorized {
+            returnToSetup(message: "Your saved token was rejected. Connect again.")
+        } catch {
+            showToast(errorMessage(for: error))
+        }
+    }
+
+    func setShareEnabled(_ video: Video, _ enabled: Bool) {
+        guard enabled != video.shareEnabled, let configuration else { return }
         Task { [weak self] in
             guard let self else { return }
             do {
+                let replacement = try await services.updateVideo(
+                    video,
+                    title: nil,
+                    shareEnabled: enabled,
+                    configuration: configuration
+                )
+                mergeVideoUpdate(replacement, titleChanged: false, shareEnabledChanged: true)
+                showToast(enabled ? "Link on" : "Link off")
+            } catch APIError.unauthorized {
+                returnToSetup(message: "Your saved token was rejected. Connect again.")
+            } catch {
+                showToast(errorMessage(for: error))
+            }
+        }
+    }
+
+    func newLink(_ video: Video) {
+        guard let configuration, revokingVideoIDs.insert(video.id).inserted else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            defer { revokingVideoIDs.remove(video.id) }
+            do {
                 let replacement = try await services.revoke(video, configuration: configuration)
-                replaceVideo(replacement)
+                mergeVideoUpdate(
+                    replacement,
+                    titleChanged: false,
+                    shareEnabledChanged: false,
+                    shareURLChanged: true
+                )
                 copyLink(replacement)
                 showToast("New link copied")
             } catch APIError.unauthorized {
@@ -369,6 +435,9 @@ final class AppModel {
             do {
                 try await services.delete(video, configuration: configuration)
                 videos.removeAll { $0.id == video.id }
+                if selectedVideoID == video.id {
+                    deselect()
+                }
             } catch APIError.unauthorized {
                 returnToSetup(message: "Your saved token was rejected. Connect again.")
             } catch {
@@ -433,6 +502,7 @@ final class AppModel {
             }
             configuration = nil
             videos = []
+            deselect()
             setup = SetupState()
             setup.errorMessage = nil
             isShowingSettings = false
@@ -594,9 +664,34 @@ final class AppModel {
         videos[index] = replacement
     }
 
+    private func mergeVideoUpdate(
+        _ response: Video,
+        titleChanged: Bool,
+        shareEnabledChanged: Bool,
+        shareURLChanged: Bool = false
+    ) {
+        guard let index = videos.firstIndex(where: { $0.id == response.id }) else { return }
+        let current = videos[index]
+        videos[index] = Video(
+            id: current.id,
+            title: titleChanged ? response.title : current.title,
+            originalFilename: current.originalFilename,
+            sizeBytes: current.sizeBytes,
+            durationSeconds: current.durationSeconds,
+            width: current.width,
+            height: current.height,
+            status: current.status,
+            shareEnabled: shareEnabledChanged ? response.shareEnabled : current.shareEnabled,
+            shareUrl: shareURLChanged ? response.shareUrl : current.shareUrl,
+            createdAt: current.createdAt,
+            readyAt: current.readyAt
+        )
+    }
+
     private func returnToSetup(message: String) {
         configuration = nil
         videos = []
+        deselect()
         setup.isConfigured = false
         setup.tokenText = ""
         setup.errorMessage = message

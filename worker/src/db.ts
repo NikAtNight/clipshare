@@ -21,7 +21,7 @@ export async function videoByIdempotencyKey(env: Env, key: string): Promise<Vide
 }
 
 export async function readyVideoByToken(env: Env, token: string): Promise<VideoRow | null> {
-  return env.DB.prepare("SELECT * FROM videos WHERE share_token = ? AND status = 'ready'").bind(token).first<VideoRow>();
+  return env.DB.prepare("SELECT * FROM videos WHERE share_token = ? AND status = 'ready' AND share_enabled = 1").bind(token).first<VideoRow>();
 }
 
 export async function savePart(env: Env, id: string, part: Part): Promise<void> {
@@ -50,6 +50,7 @@ export function toVideo(row: VideoRow, publicBaseUrl: string) {
     width: row.width,
     height: row.height,
     status: row.status,
+    shareEnabled: row.share_enabled === 1,
     shareUrl: row.status === "ready" ? `${publicBaseUrl}/v/${row.share_token}` : null,
     createdAt: new Date(row.created_at).toISOString(),
     readyAt: row.ready_at === null ? null : new Date(row.ready_at).toISOString()

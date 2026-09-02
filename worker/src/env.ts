@@ -24,6 +24,7 @@ export interface VideoRow {
   part_size_bytes: number;
   parts_json: string;
   ready_at: number | null;
+  share_enabled: number;
   share_token: string;
   size_bytes: number;
   status: "uploading" | "ready" | "failed";

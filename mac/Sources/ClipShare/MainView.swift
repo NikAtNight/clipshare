@@ -1,4 +1,5 @@
 import AppKit
+import ClipShareCore
 import SwiftUI
 
 struct MainView: View {
@@ -17,41 +18,53 @@ struct MainView: View {
                 pendingBanner(pending)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Recent")
-                    .font(.headline)
-
-                if let listError = model.listError {
-                    Text(listError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                if model.videos.isEmpty, !model.isRefreshing {
-                    Text("Nothing uploaded yet.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                } else {
-                    // The menu bar window sizes itself to its content, and a
-                    // ScrollView has no intrinsic height, so it collapses to
-                    // nothing unless the height is stated from the row count.
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(model.videos, id: \.id) { video in
-                                VideoRow(model: model, video: video)
-                                if video.id != model.videos.last?.id {
-                                    Divider()
-                                }
-                            }
-                        }
-                    }
-                    .frame(height: min(CGFloat(model.videos.count) * 53, 280))
-                }
+            if let selectedVideo {
+                VideoDetailView(model: model, video: selectedVideo)
+            } else {
+                recentVideos
             }
 
             footer
         }
         .padding(16)
+    }
+
+    private var selectedVideo: Video? {
+        guard let selectedVideoID = model.selectedVideoID else { return nil }
+        return model.videos.first { $0.id == selectedVideoID }
+    }
+
+    private var recentVideos: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Recent")
+                .font(.headline)
+
+            if let listError = model.listError {
+                Text(listError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            if model.videos.isEmpty, !model.isRefreshing {
+                Text("Nothing uploaded yet.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            } else {
+                // The menu bar window sizes itself to its content, and a
+                // ScrollView needs an explicit height to display its rows.
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(model.videos, id: \.id) { video in
+                            VideoRow(model: model, video: video)
+                            if video.id != model.videos.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                .frame(height: min(CGFloat(model.videos.count) * 53, 280))
+            }
+        }
     }
 
     private var dropZone: some View {

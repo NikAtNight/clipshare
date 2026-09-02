@@ -16,8 +16,15 @@ struct VideoRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                model.select(video)
+            }
             trailingControl
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -26,12 +33,12 @@ struct VideoRow: View {
                 model.confirmingDeleteVideoID = nil
                 model.copyLink(video)
             }
-            .disabled(video.status != .ready || video.shareUrl == nil)
+            .disabled(video.status != .ready || video.shareUrl == nil || !video.shareEnabled)
             Button("Open in browser") {
                 model.confirmingDeleteVideoID = nil
                 model.openLink(video)
             }
-            .disabled(video.status != .ready || video.shareUrl == nil)
+            .disabled(video.status != .ready || video.shareUrl == nil || !video.shareEnabled)
             Button("New link…") {
                 model.confirmingDeleteVideoID = nil
                 model.newLink(video)
@@ -69,7 +76,7 @@ struct VideoRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Copy link")
-                .disabled(video.shareUrl == nil)
+                .disabled(video.shareUrl == nil || !video.shareEnabled)
             case .uploading:
                 badge("Uploading")
             case .failed:

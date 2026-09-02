@@ -111,6 +111,30 @@ final class UploadTests: XCTestCase {
         XCTAssertEqual(payload["idempotencyKey"] as? String, key.uuidString.lowercased())
         XCTAssertEqual(payload["originalFilename"] as? String, "movie.mp4")
         XCTAssertEqual(response.video.createdAt.timeIntervalSince1970, 1_788_285_600.123, accuracy: 0.001)
+        XCTAssertTrue(response.video.shareEnabled)
+    }
+
+    func testUpdateVideoSendsOnlyProvidedFields() async throws {
+        var bodies: [Data] = []
+        TestURLProtocol.handler = { _, body in
+            bodies.append(body)
+            return (200, self.json(["video": self.video(status: "ready")]))
+        }
+
+        _ = try await client().updateVideo(id: "video-1", title: "Renamed")
+        _ = try await client().updateVideo(id: "video-1", shareEnabled: false)
+        _ = try await client().updateVideo(id: "video-1", title: "Another name", shareEnabled: true)
+
+        let payloads = try bodies.map {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any])
+        }
+        XCTAssertEqual(Set(payloads[0].keys), ["title"])
+        XCTAssertEqual(payloads[0]["title"] as? String, "Renamed")
+        XCTAssertEqual(Set(payloads[1].keys), ["shareEnabled"])
+        XCTAssertEqual(payloads[1]["shareEnabled"] as? Bool, false)
+        XCTAssertEqual(Set(payloads[2].keys), ["title", "shareEnabled"])
+        XCTAssertEqual(payloads[2]["title"] as? String, "Another name")
+        XCTAssertEqual(payloads[2]["shareEnabled"] as? Bool, true)
     }
 
     func testAPIClientMapsErrors() async throws {
