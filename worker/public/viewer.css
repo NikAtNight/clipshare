@@ -23,7 +23,7 @@ body {
   box-sizing: border-box;
   flex: 1;
   margin: 0 auto;
-  max-width: 1040px;
+  max-width: 1280px;
   padding: 8px 24px 32px;
   width: 100%;
 }
@@ -37,14 +37,20 @@ body {
 }
 .watch-meta { color: #7f8ca6; font-size: .9rem; margin: 6px 0 18px; }
 .watch-meta:empty { margin: 0 0 18px; }
+/* A fixed 16:9 stage, like YouTube, so portrait and small clips get the
+   same player and sit letterboxed inside it. Width is capped by the column,
+   then by the viewport height so the stage never runs off screen. */
 .watch-frame {
+  aspect-ratio: 16 / 9;
   background: #000;
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 14px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(88, 140, 255, .08);
+  margin: 0 auto;
   overflow: hidden;
+  width: min(100%, calc((100vh - 230px) * 16 / 9));
 }
-video { background: #000; display: block; max-height: 78vh; width: 100%; }
+video { background: #000; display: block; height: 100%; object-fit: contain; width: 100%; }
 #playback-error { color: #ffb4ab; margin: 16px 0 0; }
 .watch-foot { color: #5f6c85; font-size: .78rem; letter-spacing: .08em; padding: 12px 24px 28px; text-align: center; text-transform: uppercase; }
 @media (max-width: 600px) {
