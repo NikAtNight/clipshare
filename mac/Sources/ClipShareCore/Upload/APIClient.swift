@@ -27,11 +27,12 @@ public final class APIClient: @unchecked Sendable {
         try await sendEmpty(path: "api/videos/\(id)/abort", method: "POST")
     }
 
-    public func listVideos(limit: Int? = nil, cursor: String? = nil) async throws -> ListResponse {
+    public func listVideos(limit: Int? = nil, cursor: String? = nil, query: String? = nil) async throws -> ListResponse {
         var components = URLComponents(url: endpoint("api/videos"), resolvingAgainstBaseURL: false)
         var items: [URLQueryItem] = []
         if let limit { items.append(URLQueryItem(name: "limit", value: String(limit))) }
         if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+        if let query, !query.isEmpty { items.append(URLQueryItem(name: "q", value: query)) }
         components?.queryItems = items.isEmpty ? nil : items
         guard let url = components?.url else { throw APIError.badRequest(code: "invalid_url") }
         return try await send(url: url, method: "GET")

@@ -14,7 +14,7 @@ protocol AppServices: Sendable {
     func saveConfiguration(_ configuration: AppConfiguration) async throws
     func deleteConfiguration() async throws
     func validate(_ configuration: AppConfiguration) async throws
-    func listVideos(_ configuration: AppConfiguration, limit: Int) async throws -> [Video]
+    func listVideos(_ configuration: AppConfiguration, limit: Int, cursor: String?, query: String?) async throws -> ListResponse
     func prepare(_ url: URL, progress: @Sendable @escaping (Double) -> Void) async throws -> PreparedMedia
     func upload(
         _ prepared: PreparedMedia,
@@ -60,9 +60,9 @@ actor LiveAppServices: AppServices {
         _ = try await client.listVideos(limit: 1)
     }
 
-    func listVideos(_ configuration: AppConfiguration, limit: Int) async throws -> [Video] {
+    func listVideos(_ configuration: AppConfiguration, limit: Int, cursor: String?, query: String?) async throws -> ListResponse {
         let client = APIClient(baseURL: configuration.baseURL, token: configuration.token)
-        return try await client.listVideos(limit: limit).videos
+        return try await client.listVideos(limit: limit, cursor: cursor, query: query)
     }
 
     func prepare(_ url: URL, progress: @Sendable @escaping (Double) -> Void) async throws -> PreparedMedia {
@@ -166,7 +166,10 @@ final class AppModel {
     var setup = SetupState()
     var job: Job?
     var videos: [Video] = []
+    var searchText = ""
+    var nextCursor: String?
     var isRefreshing = false
+    var isLoadingMore = false
     var listError: String?
     var pendingUpload: PendingUpload?
     var toast: String?
@@ -185,6 +188,9 @@ final class AppModel {
     @ObservationIgnored private var sourceFileURL: URL?
     @ObservationIgnored private var idempotencyKey: UUID?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var listRequestGeneration = 0
+    @ObservationIgnored private var listedSearchText = ""
     @ObservationIgnored private var revokingVideoIDs: Set<String> = []
 
     init(services: any AppServices = LiveAppServices()) {
@@ -321,24 +327,88 @@ final class AppModel {
 
     func refresh() {
         confirmingDeleteVideoID = nil
-        guard let configuration, !isRefreshing else { return }
+        guard let configuration else { return }
+        listRequestGeneration += 1
+        let generation = listRequestGeneration
+        let query = searchText
         isRefreshing = true
+        isLoadingMore = false
         listError = nil
         Task { [weak self] in
             guard let self else { return }
             do {
-                videos = try await services.listVideos(configuration, limit: 20)
+                let response = try await services.listVideos(
+                    configuration,
+                    limit: 30,
+                    cursor: nil,
+                    query: query
+                )
+                guard generation == listRequestGeneration, query == searchText else { return }
+                videos = response.videos
+                nextCursor = response.nextCursor
+                listedSearchText = query
                 if let selectedVideoID, !videos.contains(where: { $0.id == selectedVideoID }) {
                     deselect()
                 }
                 isRefreshing = false
             } catch APIError.unauthorized {
+                guard generation == listRequestGeneration else { return }
                 isRefreshing = false
                 returnToSetup(message: "Your saved token was rejected. Connect again.")
             } catch {
+                guard generation == listRequestGeneration, query == searchText else { return }
                 isRefreshing = false
                 listError = errorMessage(for: error)
             }
+        }
+    }
+
+    func loadMore() {
+        guard let configuration,
+              let cursor = nextCursor,
+              !isRefreshing,
+              !isLoadingMore,
+              listedSearchText == searchText
+        else { return }
+        let generation = listRequestGeneration
+        let query = searchText
+        isLoadingMore = true
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await services.listVideos(
+                    configuration,
+                    limit: 30,
+                    cursor: cursor,
+                    query: query
+                )
+                guard generation == listRequestGeneration, query == searchText else {
+                    if generation == listRequestGeneration {
+                        isLoadingMore = false
+                    }
+                    return
+                }
+                videos.append(contentsOf: response.videos)
+                nextCursor = response.nextCursor
+                isLoadingMore = false
+            } catch APIError.unauthorized {
+                guard generation == listRequestGeneration else { return }
+                isLoadingMore = false
+                returnToSetup(message: "Your saved token was rejected. Connect again.")
+            } catch {
+                guard generation == listRequestGeneration, query == searchText else { return }
+                isLoadingMore = false
+                listError = errorMessage(for: error)
+            }
+        }
+    }
+
+    func searchTextChanged() {
+        searchTask?.cancel()
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            self?.refresh()
         }
     }
 
@@ -502,6 +572,8 @@ final class AppModel {
             }
             configuration = nil
             videos = []
+            nextCursor = nil
+            listedSearchText = ""
             deselect()
             setup = SetupState()
             setup.errorMessage = nil
@@ -613,7 +685,7 @@ final class AppModel {
         copyLink(video)
         if let index = videos.firstIndex(where: { $0.id == video.id }) {
             videos[index] = video
-        } else {
+        } else if uploadMatchesCurrentSearch(video) {
             videos.insert(video, at: 0)
         }
         pendingUpload = nil
@@ -691,6 +763,8 @@ final class AppModel {
     private func returnToSetup(message: String) {
         configuration = nil
         videos = []
+        nextCursor = nil
+        listedSearchText = ""
         deselect()
         setup.isConfigured = false
         setup.tokenText = ""
@@ -704,6 +778,12 @@ final class AppModel {
         preparedMedia = nil
         sourceFileURL = nil
         idempotencyKey = nil
+    }
+
+    private func uploadMatchesCurrentSearch(_ video: Video) -> Bool {
+        searchText.isEmpty
+            || video.title.localizedCaseInsensitiveContains(searchText)
+            || video.originalFilename.localizedCaseInsensitiveContains(searchText)
     }
 
     private func showToast(_ message: String) {

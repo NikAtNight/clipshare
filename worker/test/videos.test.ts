@@ -328,4 +328,37 @@ describe("ClipShare Worker", () => {
     const second = await request(`/api/videos?limit=1&cursor=${encodeURIComponent(firstBody.nextCursor)}`, { headers: ownerHeaders() });
     expect((await second.json()).videos[0].id).toBe(one.body.video.id);
   });
+
+  it("searches titles and original filenames with literal wildcards and cursor pagination", async () => {
+    const titleMatch = await createVideo({ originalFilename: "unrelated.mp4" });
+    await request(`/api/videos/${titleMatch.body.video.id}`, {
+      method: "PATCH",
+      headers: { ...ownerHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Quarterly Report" })
+    });
+    const filenameMatch = await createVideo({ originalFilename: "summer-REPORT.mp4", sizeBytes: 1 });
+    const literalPercent = await createVideo({ originalFilename: "100% complete.mp4", sizeBytes: 1 });
+    const nonLiteralPercent = await createVideo({ originalFilename: "100 complete.mp4", sizeBytes: 1 });
+
+    const titleResults = await request("/api/videos?q=quarterly", { headers: ownerHeaders() });
+    expect((await titleResults.json()).videos.map((video: any) => video.id)).toContain(titleMatch.body.video.id);
+    const filenameResults = await request("/api/videos?q=report", { headers: ownerHeaders() });
+    expect((await filenameResults.json()).videos.map((video: any) => video.id)).toContain(filenameMatch.body.video.id);
+    const literalResults = await request("/api/videos?q=100%25", { headers: ownerHeaders() });
+    const literalIds = (await literalResults.json()).videos.map((video: any) => video.id);
+    expect(literalIds).toContain(literalPercent.body.video.id);
+    expect(literalIds).not.toContain(nonLiteralPercent.body.video.id);
+
+    const first = await request("/api/videos?q=report&limit=1", { headers: ownerHeaders() });
+    const firstBody = await first.json() as any;
+    const second = await request(`/api/videos?q=report&limit=1&cursor=${encodeURIComponent(firstBody.nextCursor)}`, { headers: ownerHeaders() });
+    const ids = [firstBody.videos[0].id, (await second.json() as any).videos[0].id];
+    expect(ids).toEqual(expect.arrayContaining([titleMatch.body.video.id, filenameMatch.body.video.id]));
+  });
+
+  it("rejects a search query longer than 100 characters", async () => {
+    const response = await request(`/api/videos?q=${"x".repeat(101)}`, { headers: ownerHeaders() });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "invalid_query" });
+  });
 });

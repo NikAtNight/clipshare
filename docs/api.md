@@ -87,8 +87,8 @@ Finish the upload. No body.
 ### `POST /api/videos/{id}/abort`
 Cancel an in-progress upload. Aborts the multipart upload and deletes the row. `204`. Only valid while `uploading`, else `409 not_uploading`.
 
-### `GET /api/videos?limit=50&cursor=<opaque>`
-Newest first, all statuses. `limit` defaults to 50, max 200. Response `200 { "videos": [Video], "nextCursor": "…" | null }`.
+### `GET /api/videos?limit=50&cursor=<opaque>&q=<text>`
+Newest first, all statuses. `limit` defaults to 50, max 200. `q` is optional: trimmed, max 100 characters, matched case-insensitively as a substring against both `title` and `originalFilename` (`%` and `_` in `q` are escaped, so they match literally). The cursor encodes the position only; the caller sends the same `q` on every page. Response `200 { "videos": [Video], "nextCursor": "…" | null }`.
 
 ### `PATCH /api/videos/{id}`
 Request `{ "title": "New title", "shareEnabled": false }`. Both fields optional, at least one required (`400 invalid_request` otherwise). Title is trimmed, control characters stripped, max 200 chars, must be non-empty. `shareEnabled: false` switches the link off without changing the token; the viewer returns the generic 404 until it's switched back on. Response `200 { "video": Video }`.

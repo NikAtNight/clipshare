@@ -36,6 +36,28 @@ struct MainView: View {
 
     private var recentVideos: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search titles and filenames", text: $model.searchText)
+                    .textFieldStyle(.plain)
+                if !model.searchText.isEmpty {
+                    Button {
+                        model.searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(.quaternary, in: Capsule())
+            .onChange(of: model.searchText) {
+                model.searchTextChanged()
+            }
+
             Text("Recent")
                 .font(.headline)
 
@@ -46,7 +68,7 @@ struct MainView: View {
             }
 
             if model.videos.isEmpty, !model.isRefreshing {
-                Text("Nothing uploaded yet.")
+                Text(model.searchText.isEmpty ? "Nothing uploaded yet." : "No matches for “\(model.searchText)”.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 56)
             } else {
@@ -56,15 +78,34 @@ struct MainView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(model.videos, id: \.id) { video in
                             VideoRow(model: model, video: video)
-                            if video.id != model.videos.last?.id {
+                                .onAppear {
+                                    if video.id == model.videos.last?.id {
+                                        model.loadMore()
+                                    }
+                                }
+                            if video.id != model.videos.last?.id || model.isLoadingMore {
                                 Divider()
                             }
                         }
+                        if model.isLoadingMore {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Loading…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                        }
                     }
                 }
-                .frame(height: min(CGFloat(model.videos.count) * 53, 280))
+                .frame(height: min(CGFloat(listRowCount) * 53, 340))
             }
         }
+    }
+
+    private var listRowCount: Int {
+        model.videos.count + (model.isLoadingMore ? 1 : 0)
     }
 
     private var dropZone: some View {

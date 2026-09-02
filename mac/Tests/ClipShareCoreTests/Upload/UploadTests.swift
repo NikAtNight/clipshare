@@ -137,6 +137,19 @@ final class UploadTests: XCTestCase {
         XCTAssertEqual(payloads[2]["shareEnabled"] as? Bool, true)
     }
 
+    func testListVideosSendsPercentEncodedQuery() async throws {
+        TestURLProtocol.handler = { _, _ in
+            (200, self.json(["videos": [], "nextCursor": NSNull()]))
+        }
+
+        _ = try await client().listVideos(limit: 30, cursor: "next page", query: "title & café")
+
+        let request = try XCTUnwrap(TestURLProtocol.recorder.all().first)
+        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "q" })?.value, "title & café")
+        XCTAssertEqual(components.percentEncodedQuery, "limit=30&cursor=next%20page&q=title%20%26%20caf%C3%A9")
+    }
+
     func testAPIClientMapsErrors() async throws {
         let cases: [(Int, Data, (APIError) -> Bool)] = [
             (401, json(["error": "unauthorized"]), { if case .unauthorized = $0 { return true }; return false }),

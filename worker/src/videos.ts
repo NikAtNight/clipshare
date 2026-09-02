@@ -199,12 +199,25 @@ videos.get("/", async (context) => {
   const limitRaw = context.req.query("limit");
   const limit = limitRaw === undefined ? 50 : Number(limitRaw);
   if (!Number.isInteger(limit) || limit < 1 || limit > 200) return error(context, 400, "invalid_limit", "Limit must be between 1 and 200.");
+  const searchRaw = context.req.query("q");
+  const search = searchRaw?.trim() || null;
+  if (search && search.length > 100) return error(context, 400, "invalid_query", "Query must be at most 100 characters.");
   const cursorRaw = context.req.query("cursor");
   const cursor = cursorRaw === undefined ? null : decodeCursor(cursorRaw);
   if (cursorRaw !== undefined && !cursor) return error(context, 400, "invalid_cursor", "Cursor is invalid.");
-  const query = cursor
-    ? context.env.DB.prepare("SELECT * FROM videos WHERE created_at < ? OR (created_at = ? AND id < ?) ORDER BY created_at DESC, id DESC LIMIT ?").bind(cursor.createdAt, cursor.createdAt, cursor.id, limit + 1)
-    : context.env.DB.prepare("SELECT * FROM videos ORDER BY created_at DESC, id DESC LIMIT ?").bind(limit + 1);
+  const searchPattern = search && `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+  const conditions: string[] = [];
+  const values: (number | string)[] = [];
+  if (searchPattern) {
+    conditions.push("(title LIKE ? ESCAPE '\\' OR original_filename LIKE ? ESCAPE '\\')");
+    values.push(searchPattern, searchPattern);
+  }
+  if (cursor) {
+    conditions.push("(created_at < ? OR (created_at = ? AND id < ?))");
+    values.push(cursor.createdAt, cursor.createdAt, cursor.id);
+  }
+  const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const query = context.env.DB.prepare(`SELECT * FROM videos${where} ORDER BY created_at DESC, id DESC LIMIT ?`).bind(...values, limit + 1);
   const rows = (await query.all<VideoRow>()).results;
   const more = rows.length > limit;
   const page = rows.slice(0, limit);
