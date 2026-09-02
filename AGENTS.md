@@ -6,16 +6,16 @@ Read `docs/prd.md` for what and why, `docs/api.md` for the contract between the 
 
 ## Layout
 
-- `worker/` Cloudflare Worker (TypeScript, Hono, D1, R2 binding, static viewer assets). Package manager is bun.
+- `worker/` Cloudflare Worker (TypeScript, Hono, D1, R2 binding, static viewer assets). Package manager is pnpm.
 - `mac/` SwiftPM package. `ClipShareCore` library (media pipeline, upload client, Keychain), `ClipShare` executable (SwiftUI menu bar app), tests, and `scripts/make-app.sh` that builds the `.app` bundle.
 
 ## Commands
 
 Worker (run in `worker/`):
-- `bun install`
-- `bun run check` typecheck
-- `bun run test` vitest against Miniflare with local D1 and R2
-- `bun run dev` local server on http://localhost:8787 (reads `.dev.vars` for `OWNER_TOKEN_SHA256`)
+- `pnpm install`
+- `pnpm run check` typecheck
+- `pnpm run test` vitest against Miniflare with local D1 and R2
+- `pnpm run dev` local server on http://localhost:8787 (reads `.dev.vars` for `OWNER_TOKEN_SHA256`)
 
 Mac (run in `mac/`):
 - `swift build`

@@ -12,7 +12,7 @@ Private video sharing for one person. A macOS menu bar app uploads a video to a 
 
 ## Layout
 
-- `worker/` Cloudflare Worker (TypeScript, Hono, D1, R2, static viewer). Package manager is bun.
+- `worker/` Cloudflare Worker (TypeScript, Hono, D1, R2, static viewer). Package manager is pnpm.
 - `mac/` SwiftPM package: `ClipShareCore` (media pipeline, upload client, Keychain) and the `ClipShare` SwiftUI app. `scripts/make-app.sh` builds `build/ClipShare.app`.
 - `docs/prd.md` design, `docs/api.md` the contract between the two halves, `docs/deploy.md` how to ship it.
 
@@ -20,17 +20,17 @@ Private video sharing for one person. A macOS menu bar app uploads a video to a 
 
 ```sh
 cd worker
-bun install
+pnpm install
 cp .dev.vars.example .dev.vars   # put in the SHA-256 of your owner token
-bun run migrate:local
-bun run dev                      # http://localhost:8787
+pnpm run migrate:local
+pnpm run dev                      # http://localhost:8787
 
 cd ../mac
 ./scripts/make-app.sh
 open build/ClipShare.app         # point Settings at http://localhost:8787 and paste the token
 ```
 
-Tests: `bun run test` in `worker/`, `swift test` in `mac/`.
+Tests: `pnpm run test` in `worker/`, `swift test` in `mac/`.
 
 ## Deploy
 
