@@ -69,6 +69,14 @@ function viewerHeaders(response: Response) {
 }
 
 describe("ClipShare Worker", () => {
+  it("serves the icons by name", async () => {
+    for (const [path, type] of [["/favicon.svg", "image/svg+xml"], ["/favicon.png", "image/png"], ["/apple-touch-icon.png", "image/png"]]) {
+      const response = await request(path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toContain(type);
+    }
+  });
+
   it("serves the protected home page without exposing its template", async () => {
     const home = await request("/");
     expect(home.status).toBe(200);

@@ -29,10 +29,11 @@ video { background: #000; max-height: 75vh; width: 100%; }
   .home > * { animation: none; }
 }
 .home-mark {
-  color: #8fb4ff;
-  filter: drop-shadow(0 0 18px rgba(88, 140, 255, .45));
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(43, 95, 217, .45);
+  display: block;
   height: 72px;
-  margin-bottom: 20px;
+  margin: 0 auto 22px;
   width: 72px;
 }
 .home-title {

@@ -41,6 +41,21 @@ app.get("/viewer.js", (context) => {
   return context.env.ASSETS.fetch(context.req.raw);
 });
 
+// Icons are the only other files served by name; everything else in
+// public/ is a template that must stay unreachable.
+app.get("/favicon.svg", (context) => {
+  context.set("route", "icon");
+  return context.env.ASSETS.fetch(context.req.raw);
+});
+app.get("/favicon.png", (context) => {
+  context.set("route", "icon");
+  return context.env.ASSETS.fetch(context.req.raw);
+});
+app.get("/apple-touch-icon.png", (context) => {
+  context.set("route", "icon");
+  return context.env.ASSETS.fetch(context.req.raw);
+});
+
 app.get("/v/:token", async (context) => {
   context.set("route", "viewer_page");
   const video = await readyVideoByToken(context.env, context.req.param("token"));
