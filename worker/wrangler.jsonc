@@ -1,0 +1,61 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "clipshare",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PUBLIC_BASE_URL": "http://localhost:8787"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "clipshare",
+      "database_id": "REPLACE_ME"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "clipshare",
+      "preview_bucket_name": "clipshare-dev"
+    }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./public",
+    "run_worker_first": true
+  },
+  "env": {
+    "production": {
+      "vars": {
+        "PUBLIC_BASE_URL": "https://clips.talix.app"
+      },
+      "routes": [
+        {
+          "pattern": "clips.talix.app",
+          "custom_domain": true
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "clipshare",
+          // Replace this with the production D1 database id before deploying.
+          "database_id": "REPLACE_ME"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BUCKET",
+          "bucket_name": "clipshare"
+        }
+      ],
+      "assets": {
+        "binding": "ASSETS",
+        "directory": "./public",
+        "run_worker_first": true
+      }
+    }
+  }
+}

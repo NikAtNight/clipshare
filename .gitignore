@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+.build/
+.build-*/
+build/
+*.xcuserstate
+.DS_Store
+.codex-briefs/

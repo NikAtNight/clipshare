@@ -1,0 +1,2 @@
+# Generate with: printf '%s' "$TOKEN" | shasum -a 256
+OWNER_TOKEN_SHA256=

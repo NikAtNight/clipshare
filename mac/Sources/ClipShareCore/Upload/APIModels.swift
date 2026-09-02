@@ -1,0 +1,104 @@
+import Foundation
+
+public enum VideoStatus: String, Codable, Sendable, Equatable {
+    case uploading
+    case ready
+    case failed
+}
+
+public struct Video: Codable, Sendable, Equatable {
+    public let id: String
+    public let title: String
+    public let originalFilename: String
+    public let sizeBytes: Int64
+    public let durationSeconds: Double?
+    public let width: Int?
+    public let height: Int?
+    public let status: VideoStatus
+    public let shareUrl: URL?
+    public let createdAt: Date
+    public let readyAt: Date?
+
+    public init(id: String, title: String, originalFilename: String, sizeBytes: Int64, durationSeconds: Double?, width: Int?, height: Int?, status: VideoStatus, shareUrl: URL?, createdAt: Date, readyAt: Date?) {
+        self.id = id
+        self.title = title
+        self.originalFilename = originalFilename
+        self.sizeBytes = sizeBytes
+        self.durationSeconds = durationSeconds
+        self.width = width
+        self.height = height
+        self.status = status
+        self.shareUrl = shareUrl
+        self.createdAt = createdAt
+        self.readyAt = readyAt
+    }
+}
+
+public struct CreateVideoRequest: Codable, Sendable, Equatable {
+    public let idempotencyKey: String
+    public let originalFilename: String
+    public let sizeBytes: Int64
+    public let durationSeconds: Double?
+    public let width: Int?
+    public let height: Int?
+
+    public init(idempotencyKey: UUID, originalFilename: String, sizeBytes: Int64, durationSeconds: Double?, width: Int?, height: Int?) {
+        self.idempotencyKey = idempotencyKey.uuidString.lowercased()
+        self.originalFilename = originalFilename
+        self.sizeBytes = sizeBytes
+        self.durationSeconds = durationSeconds
+        self.width = width
+        self.height = height
+    }
+}
+
+public struct CreateVideoResponse: Codable, Sendable, Equatable {
+    public let video: Video
+    public let partSizeBytes: Int64
+    public let partCount: Int
+}
+
+public struct VideoStatusResponse: Codable, Sendable, Equatable {
+    public let video: Video
+    public let partSizeBytes: Int64
+    public let partCount: Int
+    public let uploadedParts: [Int]
+}
+
+public struct PartUploadResponse: Codable, Sendable, Equatable {
+    public let partNumber: Int
+    public let etag: String
+    public let sizeBytes: Int64
+}
+
+public struct CompleteResponse: Codable, Sendable, Equatable {
+    public let video: Video
+    public let shareUrl: URL
+}
+
+public struct ListResponse: Codable, Sendable, Equatable {
+    public let videos: [Video]
+    public let nextCursor: String?
+}
+
+public enum APIError: Error, LocalizedError {
+    case unauthorized
+    case notFound
+    case conflict(code: String, missing: [Int]?)
+    case badRequest(code: String)
+    case server(status: Int)
+    case network(Error)
+    case decoding(Error)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unauthorized: return "The owner token was rejected."
+        case .notFound: return "The video was not found."
+        case let .conflict(code, _): return "The request could not be completed: \(code)."
+        case let .badRequest(code): return "The request was invalid: \(code)."
+        case let .server(status): return "The server returned an error (\(status))."
+        case .network: return "The network request failed."
+        case .decoding: return "The server returned an unexpected response."
+        }
+    }
+}
