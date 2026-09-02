@@ -4,3 +4,4 @@ main { box-sizing: border-box; max-width: 960px; padding: 24px; width: 100%; }
 h1 { font-size: 1.25rem; font-weight: 600; overflow-wrap: anywhere; }
 video { background: #000; max-height: 75vh; width: 100%; }
 #playback-error { color: #ffb4ab; }
+.home { max-width: 560px; text-align: center; }

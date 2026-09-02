@@ -69,6 +69,26 @@ function viewerHeaders(response: Response) {
 }
 
 describe("ClipShare Worker", () => {
+  it("serves the protected home page without exposing its template", async () => {
+    const home = await request("/");
+    expect(home.status).toBe(200);
+    expect(home.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+    viewerHeaders(home);
+    expect(await home.text()).toContain("ClipShare");
+
+    const head = await request("/", { method: "HEAD" });
+    expect(head.status).toBe(200);
+    viewerHeaders(head);
+    expect(await head.text()).toBe("");
+
+    const unavailable = await request("/v/not-a-real-token");
+    for (const path of ["/home.html", "/nope"]) {
+      const response = await request(path);
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe(await unavailable.clone().text());
+    }
+  });
+
   it("rejects missing, wrong, and differently sized owner tokens", async () => {
     for (const headers of [{}, { Authorization: "Bearer wrong" }, { Authorization: "Bearer x".repeat(100) }]) {
       const response = await request("/api/videos", { headers });

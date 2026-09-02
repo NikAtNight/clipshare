@@ -17,6 +17,13 @@ export async function unavailable(env: Env, request: Request): Promise<Response>
   return new Response(response.body, { status: 404, headers });
 }
 
+export async function homePage(env: Env, request: Request): Promise<Response> {
+  const response = await asset(env, request, "home.html");
+  const headers = viewerHeaders();
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  return new Response(response.body, { status: 200, headers });
+}
+
 export async function viewerPage(env: Env, request: Request, video: VideoRow): Promise<Response> {
   const template = await asset(env, request, "index.html");
   const signature = await mediaSignature(env.OWNER_TOKEN_SHA256, video.share_token);

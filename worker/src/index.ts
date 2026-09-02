@@ -3,7 +3,7 @@ import { ownerAuth } from "./auth";
 import { readyVideoByToken } from "./db";
 import type { Env } from "./env";
 import { media } from "./media";
-import { unavailable, viewerPage } from "./viewer";
+import { homePage, unavailable, viewerPage } from "./viewer";
 import { videos } from "./videos";
 
 type App = { Bindings: Env; Variables: { route: string } };
@@ -26,6 +26,11 @@ app.use("*", async (context, next) => {
 app.use("/api", ownerAuth);
 app.use("/api/*", ownerAuth);
 app.route("/api/videos", videos);
+
+app.on(["GET", "HEAD"], "/", (context) => {
+  context.set("route", "home_page");
+  return homePage(context.env, context.req.raw);
+});
 
 app.get("/viewer.css", (context) => {
   context.set("route", "viewer_stylesheet");
