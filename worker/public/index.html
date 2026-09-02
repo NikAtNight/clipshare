@@ -16,12 +16,14 @@
       <span class="watch-brand">ClipShare</span>
     </header>
     <main class="watch">
-      <h1 class="watch-title">{{title}}</h1>
-      <p class="watch-meta">{{meta}}</p>
-      <div class="watch-frame">
-        <video controls controlslist="nodownload noremoteplayback" disablepictureinpicture playsinline preload="metadata" src="{{mediaUrl}}"></video>
+      <div class="watch-stage">
+        <h1 class="watch-title">{{title}}</h1>
+        <p class="watch-meta">{{meta}}</p>
+        <div class="watch-frame">
+          <video controls controlslist="nodownload noremoteplayback" disablepictureinpicture playsinline preload="metadata" src="{{mediaUrl}}"></video>
+        </div>
+        <p id="playback-error" hidden>This browser can't play this video. Try Safari, Chrome, or Firefox.</p>
       </div>
-      <p id="playback-error" hidden>This browser can't play this video. Try Safari, Chrome, or Firefox.</p>
     </main>
     <footer class="watch-foot">Shared privately with ClipShare</footer>
   </body>
