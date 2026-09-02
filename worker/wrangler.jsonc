@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "clipshare",
-      "database_id": "REPLACE_ME"
+      "database_id": "f1101997-67b2-401d-ac61-fdf8754bd1e8"
     }
   ],
   "r2_buckets": [
@@ -42,7 +42,7 @@
           "binding": "DB",
           "database_name": "clipshare",
           // Replace this with the production D1 database id before deploying.
-          "database_id": "REPLACE_ME"
+          "database_id": "f1101997-67b2-401d-ac61-fdf8754bd1e8"
         }
       ],
       "r2_buckets": [
